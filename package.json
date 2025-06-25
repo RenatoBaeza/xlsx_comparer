@@ -9,12 +9,10 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@types/react-table": "^7.7.20",
     "next": "15.3.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-dropzone": "^14.3.8",
-    "react-table": "^7.8.0",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
