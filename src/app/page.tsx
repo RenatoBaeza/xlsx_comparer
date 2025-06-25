@@ -2,12 +2,12 @@
 
 import { useState } from 'react';
 import { useDropzone } from 'react-dropzone';
-import * as XLSX from 'xlsx';
+import * as ExcelJS from 'exceljs';
 import ExcelComparer from '../components/ExcelComparer';
 
 interface ExcelFile {
   name: string;
-  data: XLSX.WorkBook;
+  data: ExcelJS.Workbook;
 }
 
 export default function Home() {
@@ -16,26 +16,28 @@ export default function Home() {
   const [isComparing, setIsComparing] = useState(false);
   const [headerRow, setHeaderRow] = useState<number>(1);
 
-  const onDrop1 = (acceptedFiles: File[]) => {
+  const onDrop1 = async (acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0) {
       const file = acceptedFiles[0];
       const reader = new FileReader();
-      reader.onload = (e) => {
-        const data = new Uint8Array(e.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: 'array' });
+      reader.onload = async (e) => {
+        const arrayBuffer = e.target?.result as ArrayBuffer;
+        const workbook = new ExcelJS.Workbook();
+        await workbook.xlsx.load(arrayBuffer);
         setFile1({ name: file.name, data: workbook });
       };
       reader.readAsArrayBuffer(file);
     }
   };
 
-  const onDrop2 = (acceptedFiles: File[]) => {
+  const onDrop2 = async (acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0) {
       const file = acceptedFiles[0];
       const reader = new FileReader();
-      reader.onload = (e) => {
-        const data = new Uint8Array(e.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: 'array' });
+      reader.onload = async (e) => {
+        const arrayBuffer = e.target?.result as ArrayBuffer;
+        const workbook = new ExcelJS.Workbook();
+        await workbook.xlsx.load(arrayBuffer);
         setFile2({ name: file.name, data: workbook });
       };
       reader.readAsArrayBuffer(file);
@@ -110,7 +112,7 @@ export default function Home() {
                       </div>
                       <div className="text-sm text-gray-600">{file1.name}</div>
                       <div className="text-xs text-gray-500 mt-1">
-                        {file1.data.SheetNames.length} sheet(s)
+                        {file1.data.worksheets.length} sheet(s)
                       </div>
                     </div>
                   ) : (
@@ -152,7 +154,7 @@ export default function Home() {
                       </div>
                       <div className="text-sm text-gray-600">{file2.name}</div>
                       <div className="text-xs text-gray-500 mt-1">
-                        {file2.data.SheetNames.length} sheet(s)
+                        {file2.data.worksheets.length} sheet(s)
                       </div>
                     </div>
                   ) : (

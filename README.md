@@ -13,6 +13,7 @@ A modern web application built with Next.js that allows you to upload and compar
 - **Tabbed Interface**: Navigate between different sheets easily
 - **Cell Reference**: Shows Excel cell references (e.g., A1, B2, etc.)
 - **Summary Statistics**: Overview of total differences and file information
+- **Security**: Uses ExcelJS for secure Excel file processing
 
 ## Getting Started
 
@@ -60,8 +61,12 @@ npm run dev
 - **Framework**: Next.js 15 with App Router
 - **Language**: TypeScript
 - **Styling**: Tailwind CSS
-- **Excel Processing**: SheetJS (xlsx)
+- **Excel Processing**: ExcelJS (secure alternative to SheetJS)
 - **File Upload**: react-dropzone
+
+## Security
+
+This application uses **ExcelJS** instead of the vulnerable SheetJS (xlsx) library to ensure secure Excel file processing. ExcelJS is actively maintained and has no known security vulnerabilities.
 
 ## Development
 

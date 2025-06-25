@@ -1,12 +1,21 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import * as XLSX from 'xlsx';
+import * as ExcelJS from 'exceljs';
 
 interface ExcelFile {
   name: string;
-  data: XLSX.WorkBook;
+  data: ExcelJS.Workbook;
 }
+
+// Type for Excel cell values
+type ExcelCellValue = string | number | boolean | null | undefined;
+
+// Type for Excel row data
+type ExcelRow = ExcelCellValue[];
+
+// Type for Excel sheet data
+type ExcelSheetData = ExcelRow[];
 
 interface CellDifference {
   row: number;
@@ -43,6 +52,36 @@ interface ExcelComparerProps {
   headerRow: number;
 }
 
+// Helper function to convert ExcelJS worksheet to array data
+const worksheetToArray = (worksheet: ExcelJS.Worksheet): ExcelSheetData => {
+  const data: ExcelSheetData = [];
+  const dimensions = worksheet.dimensions;
+  
+  if (!dimensions) return data;
+  
+  for (let row = dimensions.top; row <= dimensions.bottom; row++) {
+    const rowData: ExcelRow = [];
+    for (let col = dimensions.left; col <= dimensions.right; col++) {
+      const cell = worksheet.getCell(row, col);
+      let value: ExcelCellValue;
+      
+      if (cell.value === null || cell.value === undefined) {
+        value = '';
+      } else if (typeof cell.value === 'object' && 'result' in cell.value) {
+        // Handle formula results
+        value = cell.value.result?.toString() || '';
+      } else {
+        value = cell.value.toString();
+      }
+      
+      rowData.push(value);
+    }
+    data.push(rowData);
+  }
+  
+  return data;
+};
+
 export default function ExcelComparer({ file1, file2, headerRow }: ExcelComparerProps) {
   const [activeTab, setActiveTab] = useState<string>('');
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
@@ -52,13 +91,13 @@ export default function ExcelComparer({ file1, file2, headerRow }: ExcelComparer
     
     // Get all unique sheet names from both files
     const allSheetNames = new Set([
-      ...file1.data.SheetNames,
-      ...file2.data.SheetNames
+      ...file1.data.worksheets.map(ws => ws.name),
+      ...file2.data.worksheets.map(ws => ws.name)
     ]);
 
     allSheetNames.forEach(sheetName => {
-      const sheet1 = file1.data.Sheets[sheetName];
-      const sheet2 = file2.data.Sheets[sheetName];
+      const sheet1 = file1.data.getWorksheet(sheetName);
+      const sheet2 = file2.data.getWorksheet(sheetName);
       
       const differences: CellDifference[] = [];
       const rowDifferences: RowDifference[] = [];
@@ -66,30 +105,30 @@ export default function ExcelComparer({ file1, file2, headerRow }: ExcelComparer
       // Get headers from the specified header row
       let headers: string[] = [];
       if (sheet1) {
-        const jsonData1 = XLSX.utils.sheet_to_json(sheet1, { header: 1 }) as any[][];
+        const jsonData1 = worksheetToArray(sheet1);
         if (jsonData1.length >= headerRow) {
-          headers = jsonData1[headerRow - 1].map((cell: any) => cell !== undefined && cell !== null ? String(cell) : '');
+          headers = jsonData1[headerRow - 1].map((cell: ExcelCellValue) => cell !== undefined && cell !== null ? String(cell) : '');
         }
       } else if (sheet2) {
-        const jsonData2 = XLSX.utils.sheet_to_json(sheet2, { header: 1 }) as any[][];
+        const jsonData2 = worksheetToArray(sheet2);
         if (jsonData2.length >= headerRow) {
-          headers = jsonData2[headerRow - 1].map((cell: any) => cell !== undefined && cell !== null ? String(cell) : '');
+          headers = jsonData2[headerRow - 1].map((cell: ExcelCellValue) => cell !== undefined && cell !== null ? String(cell) : '');
         }
       }
       
       if (!sheet1 && sheet2) {
         // Sheet exists only in file2
-        const jsonData = XLSX.utils.sheet_to_json(sheet2, { header: 1 }) as any[][];
+        const jsonData = worksheetToArray(sheet2);
         // Skip rows up to and including the header row when comparing
         const dataRows = jsonData.slice(headerRow);
-        dataRows.forEach((row: any[], rowIndex: number) => {
+        dataRows.forEach((row: ExcelRow, rowIndex: number) => {
           const rowDiff: RowDifference = {
             rowNumber: rowIndex + headerRow + 1, // +1 because rowIndex starts at 0, +headerRow to account for skipped rows
             cells: [],
             hasDifferences: false
           };
           
-          row.forEach((cell: any, colIndex: number) => {
+          row.forEach((cell: ExcelCellValue, colIndex: number) => {
             if (cell !== undefined && cell !== null && cell !== '') {
               rowDiff.cells.push({
                 col: colIndex + 1,
@@ -123,17 +162,17 @@ export default function ExcelComparer({ file1, file2, headerRow }: ExcelComparer
         });
       } else if (sheet1 && !sheet2) {
         // Sheet exists only in file1
-        const jsonData = XLSX.utils.sheet_to_json(sheet1, { header: 1 }) as any[][];
+        const jsonData = worksheetToArray(sheet1);
         // Skip rows up to and including the header row when comparing
         const dataRows = jsonData.slice(headerRow);
-        dataRows.forEach((row: any[], rowIndex: number) => {
+        dataRows.forEach((row: ExcelRow, rowIndex: number) => {
           const rowDiff: RowDifference = {
             rowNumber: rowIndex + headerRow + 1, // +1 because rowIndex starts at 0, +headerRow to account for skipped rows
             cells: [],
             hasDifferences: false
           };
           
-          row.forEach((cell: any, colIndex: number) => {
+          row.forEach((cell: ExcelCellValue, colIndex: number) => {
             if (cell !== undefined && cell !== null && cell !== '') {
               rowDiff.cells.push({
                 col: colIndex + 1,
@@ -167,8 +206,8 @@ export default function ExcelComparer({ file1, file2, headerRow }: ExcelComparer
         });
       } else if (sheet1 && sheet2) {
         // Both sheets exist, compare them
-        const jsonData1 = XLSX.utils.sheet_to_json(sheet1, { header: 1 }) as any[][];
-        const jsonData2 = XLSX.utils.sheet_to_json(sheet2, { header: 1 }) as any[][];
+        const jsonData1 = worksheetToArray(sheet1);
+        const jsonData2 = worksheetToArray(sheet2);
         
         // Skip rows up to and including the header row when comparing
         const dataRows1 = jsonData1.slice(headerRow);
@@ -176,8 +215,8 @@ export default function ExcelComparer({ file1, file2, headerRow }: ExcelComparer
         
         const maxRows = Math.max(dataRows1.length, dataRows2.length);
         const maxCols = Math.max(
-          ...dataRows1.map((row: any[]) => row.length),
-          ...dataRows2.map((row: any[]) => row.length)
+          ...dataRows1.map((row: ExcelRow) => row.length),
+          ...dataRows2.map((row: ExcelRow) => row.length)
         );
         
         // Track rows that have differences
@@ -358,12 +397,12 @@ export default function ExcelComparer({ file1, file2, headerRow }: ExcelComparer
           <div className="bg-blue-50 p-4 rounded-lg">
             <div className="text-sm font-medium text-blue-800">File 1</div>
             <div className="text-lg font-semibold text-blue-900">{file1.name}</div>
-            <div className="text-sm text-blue-600">{file1.data.SheetNames.length} sheets</div>
+            <div className="text-sm text-blue-600">{file1.data.worksheets.length} sheets</div>
           </div>
           <div className="bg-green-50 p-4 rounded-lg">
             <div className="text-sm font-medium text-green-800">File 2</div>
             <div className="text-lg font-semibold text-green-900">{file2.name}</div>
-            <div className="text-sm text-green-600">{file2.data.SheetNames.length} sheets</div>
+            <div className="text-sm text-green-600">{file2.data.worksheets.length} sheets</div>
           </div>
           <div className="bg-purple-50 p-4 rounded-lg">
             <div className="text-sm font-medium text-purple-800">Sheets Compared</div>
